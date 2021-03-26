@@ -10,7 +10,6 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
     %% Get input parameters, dynamically build winrar command
     RAR_Command = '"';
     %% Path to WinRAR EXE
-    disp(nargin);
     if(nargin < 2)
         error('Error: Insufficient Input, expected a minimum of two inputs');
     elseif(nargin == 2)
