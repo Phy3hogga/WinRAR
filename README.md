@@ -20,7 +20,7 @@ UNRAR.m supports the extraction of multiple compressed file formats including RA
 ### Prerequisites
 
 Current requirements for running this script are:
-* An installed and licenced version of WinRAR version 5.0 (or higher).
+* An installed and licenced version of WinRAR (version 5.0 or higher).
 * Windows operating system (see the Contributing section below regarding other operating systems).
 
 ### Example
