@@ -1,8 +1,9 @@
 clear all;
+Include_Subdirectories();
 
 %% Directories
 %Root directory to compress into a RAR archive
-RAR_This_Directory = "C:\Users\Username\Desktop\RAR Testing";
+RAR_This_Directory = "/media/sf_Virtualbox_Shared/WinRAR_Testing";
 %Filename for the created RAR file
 Output_RAR_File = "Test.rar";
 %Root directory to extract the files from the RAR archive into
@@ -10,7 +11,7 @@ Extraction_Directory = "RAR_Output";
 
 %% Parameters to compress/uncompress RAR file with
 %Full path to WinRAR.exe, this (may/may not) be needed depending on system enviroment variables
-RAR_Parameters.WinRAR_Path = 'C:\Program Files\WinRAR\WinRAR.exe';
+%RAR_Parameters.WinRAR_Path = 'C:\Program Files\WinRAR\WinRAR.exe';
 %Password to encrypt the archive with (optional, maximum length 125 characters due to WinRAR constraints)
 RAR_Parameters.Password = "testpassword";
 %If encrypting the filenames in the archive as well as the file contents
@@ -31,7 +32,7 @@ RAR_Parameters.Compression_Level = 1;
 RAR_Parameters.Overwrite_Mode = true;
 
 %Compress files to an archive
-Success = RAR(Directory_Path_To_RAR, Output_RAR_File, RAR_Parameters);
+Success = RAR(RAR_This_Directory, Output_RAR_File, RAR_Parameters);
 %Uncompress files from the archive if the original compression was successful
 if(Success)
     [Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory, RAR_Parameters);

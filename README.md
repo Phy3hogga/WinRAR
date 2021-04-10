@@ -66,6 +66,21 @@ if(Success)
 end
 ```
 
+## Linux
+
+Requires the ```rar``` package installed via ```multiverse``` repository to read/write rar archives on linux.
+
+To install the ```rar``` package:
+* ```sudo add-apt-repository multiverse```
+* ```sudo apt update```
+* ```sudo apt-get install rar```
+
+To register the ```rar``` package, copy the ```rarreg.key``` licence file to either:
+* ```/etc```
+* ```/usr/lib```
+* ```/usr/local/lib```
+* ```/usr/local/etc```
+
 ## Built With
 
 * [Matlab R2018A](https://www.mathworks.com/products/matlab.html)

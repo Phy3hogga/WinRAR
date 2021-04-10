@@ -24,8 +24,30 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
             WinRAR_Path = Struct_Var_Value;
         end
     else
-        WinRAR_Path = "WinRAR.exe";
+        if(ispc)
+            WinRAR_Path = "WinRAR.exe";
+        elseif(isunix)
+            WinRAR_Path = "TERM=ansi; rar";
+        elseif(ismac)
+            warning("RAR : Mac is currently unsupported, attempting to use unix implementation.");
+            WinRAR_Path = "TERM=ansi; rar";
+        else
+            error("RAR : Unable to determine system operating system for automatic selection");
+        end
+
+        %% for unix / mac attempt to verify the rar repository is installed
+        if(isunix || ismac)
+            % verify RAR repository is installed
+            [Status, CMD_Out] = system("TERM=ansi; dpkg-query --showformat='${Version}' --show rar");
+            if(Status || isempty(CMD_Out))
+                [Status, CMD_Out] = system("TERM=ansi; dpkg -s rar | grep '^Version:'");
+            end
+            if(Status || isempty(CMD_Out))
+                error("RAR : Can't verify that the RAR package is installed");
+            end
+        end
     end
+
     RAR_Command = strcat(RAR_Command, WinRAR_Path, '"');
     %% Run WinRAR in the Background or not (default = background process)
     [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Silent_Override', false);
@@ -75,7 +97,7 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     if(Struct_Var_Valid)
         Password = Struct_Var_Value;
         if(strlength(Password) >= 125)
-            disp("Warning: Password string length restricted to 125 characters, archive will not be protected by password");
+            warning("RAR : Password string length restricted to 125 characters, archive will not be protected by password");
         else
             [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Encrypt_Filenames ', true);
             if(Struct_Var_Valid)
@@ -106,7 +128,7 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
         fclose(fid);
         RAR_Command = strcat(RAR_Command, " -z", Temporary_Comment_Filename);
         catch
-            disp("Error generating file comment; no comment added");
+            disp("RAR : Error generating file comment; no comment added");
         end
     end
     
@@ -189,13 +211,13 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     %% VERIFY IF OUTPUT FILE EXISTS
     if(Success == true)
         if(~isfile(Archive_File))
-            disp("Warning: Archive file not found. Compression may have failed.");
+            warning("RAR : Archive file not found. Compression may have failed.");
             Success = false;
         end
     end
     if(Success == true)
         %Successful compression
     else
-        disp("Warning: Archive Compression Failure");
+        warning("RAR: Archive Compression Failure");
     end
 end
