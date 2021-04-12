@@ -64,12 +64,13 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     [Output_File_Path, Output_File_Filename, Output_File_Extension] = fileparts(Output_Archive_File);
     Output_File_Path_Empty = isempty(Output_File_Path) || (isstring(Output_File_Path) && length(Output_File_Path) == 1 && strlength(Output_File_Path)==0);
     Output_File_Extension_Empty = isempty(Output_File_Extension) || (isstring(Output_File_Extension) && length(Output_File_Extension) == 1 && strlength(Output_File_Extension)==0);
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Archive_Format', "", Allowed_File_Extensions);
+    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Archive_Format', "RAR", Allowed_File_Extensions);
     if(Struct_Var_Valid)
         %Archive_Format supplied, use as default
         if(Struct_Default_Used)
             %if blank
             Archive_Format = "RAR";
+            disp("RAR : Defaulting to RAR archive");
         else
             Archive_Format = Struct_Var_Value;
         end
