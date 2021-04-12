@@ -14,7 +14,7 @@ Output_RAR_File = "Test.rar";
 if(isunix)
     Extraction_Directory = "/media/sf_Virtualbox_Shared/RAR_Output";
 else
-    Extraction_Directory = "D:\Virtualbox_Shared\RAR_Output";
+    Extraction_Directory = "D:\Virtualbox_Shared";
 end
 
 %% Parameters to compress/uncompress RAR file with
@@ -40,8 +40,10 @@ RAR_Parameters.Compression_Level = 1;
 RAR_Parameters.Overwrite_Mode = true;
 
 %Compress files to an archive
-Success = RAR(RAR_This_Directory, Output_RAR_File, RAR_Parameters);
+Compression_Success = RAR(RAR_This_Directory, Output_RAR_File, RAR_Parameters);
+%Compression_Success = RAR(RAR_This_Directory, Output_RAR_File);
 %Uncompress files from the archive if the original compression was successful
-if(Success)
-    [Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory, RAR_Parameters);
+if(Compression_Success)
+    [Decompression_Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory, RAR_Parameters);
+    %[Decompression_Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory);
 end

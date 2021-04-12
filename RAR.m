@@ -12,170 +12,201 @@
 % - Recovery_Percent (integer; range 0-100) - percentage recovery portion (25% default)
 % - Silent_Override (boolean) - Run in foreground or background (default)
 function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameters)
+    %% Supported file prefixes
     Allowed_File_Extensions = ["RAR", "ZIP"];
-    %% Get input parameters, dynamically build winrar command
-    RAR_Command = '"';
-    %% Path to WinRAR EXE
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'WinRAR_Path', "");
-    if(Struct_Var_Valid)
-        if(Struct_Default_Used)
-            WinRAR_Path = "WinRAR.exe";
+    
+    %% Default values
+    Encrypt_Files = false;
+    Encrypt_Filenames = false;
+    Password = "";
+    Silent_Override = false;
+    Recovery_Percentage = 25;
+    Compression_Level = 5;
+    %Overwrite_Mode = " -o";
+    Delete_Files = false;
+    
+    %Filename for comment (no switch currently exists directly to file)
+    Temporary_Comment_Filename = strcat('Temp_Comment_File-', num2str(now), '.txt');
+    
+    %Parts of Output archive filepath
+    [Output_File_Path, Output_File_Filename, Output_File_Extension] = fileparts(Output_Archive_File);
+    Output_File_Path_Empty = isempty(Output_File_Path) || (isstring(Output_File_Path) && length(Output_File_Path) == 1 && strlength(Output_File_Path)==0);
+    %Set archive type by teh file extension
+    File_Extension_Match = strcmp(Output_File_Extension, Allowed_File_Extensions);
+    if(any(File_Extension_Match))
+        Archive_Format = Allowed_File_Extensions(File_Extension_Match);
+    else
+        Archive_Format = "RAR";
+    end
+    %% Input Handling
+    if(nargin < 2)
+        error("RAR : Insufficient input arguments");
+    elseif(nargin == 2)
+        %% Default optional arguments
+        warning("RAR : Using default optional arguments supplied in RAR_Parameters structure.");
+        RAR_Utility_Path = Get_RAR_Utility_Path();
+    elseif(nargin == 3)
+        %% Get input parameters, dynamically build winrar command
+        % Path to WinRAR / RAR package
+        [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'WinRAR_Path', "");
+        if(Struct_Var_Valid)
+            if(Struct_Default_Used)
+                RAR_Utility_Path = Get_RAR_Utility_Path();
+            else
+                RAR_Utility_Path = Struct_Var_Value;
+            end
         else
-            WinRAR_Path = Struct_Var_Value;
+            RAR_Utility_Path = Get_RAR_Utility_Path();
+        end
+        
+        % Run WinRAR in the Background or not (default = background process)
+        [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Silent_Override', false);
+        if(Struct_Var_Valid)
+            Silent_Override = Struct_Var_Value;
+        else
+            Silent_Override = false;
+        end
+        
+        %% Archive format (defaults to file type in the RAR_Parameters Archive_Format field. Uses filename extension to verify if it exists or if Archive_Format is unset.
+        Output_File_Extension_Empty = isempty(Output_File_Extension) || (isstring(Output_File_Extension) && length(Output_File_Extension) == 1 && strlength(Output_File_Extension)==0);
+        [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Archive_Format', "RAR", Allowed_File_Extensions);
+        if(Struct_Var_Valid)
+            %Archive_Format supplied, use as default
+            if(Struct_Default_Used)
+                %if blank
+                Archive_Format = "RAR";
+                disp("RAR : Defaulting to RAR archive");
+            else
+                Archive_Format = Struct_Var_Value;
+            end
+        else
+            if(Output_File_Extension_Empty)
+                Archive_Format = "RAR";
+            else
+                File_Extension_Match = strcmp(Output_File_Extension, Allowed_File_Extensions);
+                if(any(File_Extension_Match))
+                    Archive_Format = Allowed_File_Extensions(File_Extension_Match);
+                else
+                    Archive_Format = "RAR";
+                end
+            end
+        end
+        
+        % Encryption using password for archive
+        [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Password', "");
+        if(Struct_Var_Valid && ~Struct_Default_Used)
+            Password = Struct_Var_Value;
+            if(strlength(Password) >= 125)
+                warning("RAR : Password string length restricted to 125 characters, archive will not be protected by password");
+            else
+                % Password is within length constraints
+                Encrypt_Files = true;
+                % Check if encrypting filenames
+                [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Encrypt_Filenames ', true);
+                if(Struct_Var_Valid)
+                    Encrypt_Filenames  = Struct_Var_Value;
+                end
+            end
+        end
+        
+        % Comment in archive
+        [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Comment', "");
+        if(Struct_Var_Valid)
+            Comment = Struct_Var_Value;
+            try
+                fid = fopen(Temporary_Comment_Filename, 'wt');
+                if(isfile(Temporary_Comment_Filename))
+                    fprintf(fid, '%s\n', Comment);
+                end
+                fclose(fid);
+            catch
+                warning("RAR : Error generating temporary file for comment; no comment added");
+            end
+        end
+        
+        % Recovery Partition of file (varying size - default 25%)
+        [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Recovery_Percent', 25);
+        if(Struct_Var_Valid)
+            if(Struct_Default_Used)
+                Recovery_Percentage = 25;
+            else
+                Recovery_Percentage = uint8(round(Struct_Var_Value));
+                if(Recovery_Percentage <= 0)
+                    Recovery_Percentage = 0;
+                elseif(Recovery_Percentage >= 100)
+                    Recovery_Percentage = 100;
+                end
+            end
+        else
+            Recovery_Percentage = 25;
+        end
+        
+        % Compression Level
+        [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Compression_Level', 5);
+        if(Struct_Var_Valid)
+            if(Struct_Default_Used)
+                Compression_Level = 5;
+            else
+                Compression_Level = uint8(round(Struct_Var_Value));
+                if(Compression_Level <= 0)
+                    Compression_Level = 0;
+                elseif(Compression_Level >= 5)
+                    Compression_Level = 5;
+                end
+            end
+        else
+            Compression_Level = 5;
+        end
+        
+        % Delete files being archived after they are successfully added to the archive (default: no deletion)
+        [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Delete_Files_After_Archive', false);
+        if(Struct_Var_Valid)
+            Delete_Files = Struct_Var_Value;
+        else
+            Delete_Files = false;
         end
     else
-        if(ispc)
-            WinRAR_Path = "WinRAR.exe";
-        elseif(isunix)
-            WinRAR_Path = "TERM=ansi; rar";
-        elseif(ismac)
-            warning("RAR : Mac is currently unsupported, attempting to use unix implementation.");
-            WinRAR_Path = "TERM=ansi; rar";
-        else
-            error("RAR : Unable to determine system operating system for automatic selection");
-        end
-
-        %% for unix / mac attempt to verify the rar repository is installed
-        if(isunix || ismac)
-            % verify RAR repository is installed
-            [Status, CMD_Out] = system("TERM=ansi; dpkg-query --showformat='${Version}' --show rar");
-            if(Status || isempty(CMD_Out))
-                [Status, CMD_Out] = system("TERM=ansi; dpkg -s rar | grep '^Version:'");
-            end
-            if(Status || isempty(CMD_Out))
-                error("RAR : Can't verify that the RAR package is installed");
-            end
-        end
+        error('RAR : Unexpected Input');
     end
-
-    RAR_Command = strcat(RAR_Command, WinRAR_Path, '"');
-    %% Run WinRAR in the Background or not (default = background process)
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Silent_Override', false);
-    if(Struct_Var_Valid)
-        Silent_Override = Struct_Var_Value;
-    else
-        Silent_Override = false;
-    end
+    
+    %% Compile system command
+    RAR_Command = strcat('"', RAR_Utility_Path, '"');
     if(~Silent_Override)
         RAR_Command = strcat(RAR_Command, ' -IBCK');
     end
     
-    %% Archive format (defaults to file type in the RAR_Parameters Archive_Format field. Uses filename extension to verify if it exists or if Archive_Format is unset.
-    [Output_File_Path, Output_File_Filename, Output_File_Extension] = fileparts(Output_Archive_File);
-    Output_File_Path_Empty = isempty(Output_File_Path) || (isstring(Output_File_Path) && length(Output_File_Path) == 1 && strlength(Output_File_Path)==0);
-    Output_File_Extension_Empty = isempty(Output_File_Extension) || (isstring(Output_File_Extension) && length(Output_File_Extension) == 1 && strlength(Output_File_Extension)==0);
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Archive_Format', "RAR", Allowed_File_Extensions);
-    if(Struct_Var_Valid)
-        %Archive_Format supplied, use as default
-        if(Struct_Default_Used)
-            %if blank
-            Archive_Format = "RAR";
-            disp("RAR : Defaulting to RAR archive");
-        else
-            Archive_Format = Struct_Var_Value;
-        end
-    else
-        if(Output_File_Extension_Empty)
-            Archive_Format = "RAR";
-        else
-            File_Extension_Match = strcmp(Output_File_Extension, Allowed_File_Extensions);
-            if(any(File_Extension_Match))
-                Archive_Format = Allowed_File_Extensions(File_Extension_Match);
-            else
-                Archive_Format = "RAR";
-            end
-        end
-    end
     %Only add file seperator if required (absolute file paths)
     if(~Output_File_Path_Empty)
         Output_File_Path = strcat(Output_File_Path, filesep);
     end
     Archive_File = strcat(Output_File_Path, Output_File_Filename, ".", lower(Archive_Format));
-    RAR_Command = strcat(RAR_Command, " a -af", Archive_Format, ' "', Archive_File, '"');
+    %Archive format only specified on PC
+    RAR_Command = strcat(RAR_Command, " a ", '"', Archive_File, '"');
+    if(ispc)
+        RAR_Command = strcat(RAR_Command, " -af", Archive_Format);
+    end
+    %RAR_Command = strcat(RAR_Command, " a -af", Archive_Format, ' "', Archive_File, '"');
     
-    %% Encryption using password for archive
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Password', "");
-    if(Struct_Var_Valid)
-        Password = Struct_Var_Value;
-        if(strlength(Password) >= 125)
-            warning("RAR : Password string length restricted to 125 characters, archive will not be protected by password");
+    
+    % Password protection
+    if(Encrypt_Files)
+        if(Encrypt_Filenames)
+            %encrypts filenames and file contents in archive
+            RAR_Command = strcat(RAR_Command, " -hp", Password);
         else
-            [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Encrypt_Filenames ', true);
-            if(Struct_Var_Valid)
-                Encrypt_Filenames  = Struct_Var_Value;
-                if(Encrypt_Filenames)
-                    %encrypts filenames and file contents in archive
-                    RAR_Command = strcat(RAR_Command, " -hp", Password);
-                else
-                    %encrypts file contents only
-                    RAR_Command = strcat(RAR_Command, " -p", Password);
-                end
-            else
-                %encrypts file contents only
-                RAR_Command = strcat(RAR_Command, " -p", Password);
-            end
+            %encrypts file contents only
+            RAR_Command = strcat(RAR_Command, " -p", Password);
         end
     end
-    %% Comment in archive
-    [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Comment', "");
-    if(Struct_Var_Valid)
-        Comment = Struct_Var_Value;
-        Temporary_Comment_Filename = strcat('Temp_Comment_File-',num2str(now),'.txt');
-        try
-        fid = fopen(Temporary_Comment_Filename, 'wt');
-        if(isfile(Temporary_Comment_Filename))
-            fprintf(fid, '%s\n', Comment);
-        end
-        fclose(fid);
+    % Comment in archive
+    if(isfile(Temporary_Comment_Filename))
         RAR_Command = strcat(RAR_Command, " -z", Temporary_Comment_Filename);
-        catch
-            disp("RAR : Error generating file comment; no comment added");
-        end
     end
-    
-    %% Recovery Partition of file (varying size - default 25%)
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Recovery_Percent', 25);
-    if(Struct_Var_Valid)
-        if(Struct_Default_Used)
-            Recovery_Percentage = 25;
-        else
-            Recovery_Percentage = uint8(round(Struct_Var_Value));
-            if(Recovery_Percentage <= 0)
-                Recovery_Percentage = 0;
-            elseif(Recovery_Percentage >= 100)
-                Recovery_Percentage = 100;
-            end
-        end
-    else
-        Recovery_Percentage = 25;
-    end
+    % Recovery partition
     RAR_Command = strcat(RAR_Command, " -rr", num2str(Recovery_Percentage), "p");
-    
-    %% Compression Level
-    [Struct_Var_Value, Struct_Var_Valid, Struct_Default_Used] = Verify_Structure_Input(RAR_Parameters, 'Compression_Level', 5);
-    if(Struct_Var_Valid)
-        if(Struct_Default_Used)
-            Compression_Level = 5;
-        else
-            Compression_Level = uint8(round(Struct_Var_Value));
-            if(Compression_Level <= 0)
-                Compression_Level = 0;
-            elseif(Compression_Level >= 5)
-                Compression_Level = 5;
-            end
-        end
-    else
-        Compression_Level = 5;
-    end
+    % Compression Level
     RAR_Command = strcat(RAR_Command, " -m", num2str(Compression_Level));
-    
-    %% Delete files being archived after they are successfully added to the archive (default: no deletion)
-    [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Delete_Files_After_Archive', false);
-    if(Struct_Var_Valid)
-        Delete_Files = Struct_Var_Value;
-    else
-        Delete_Files = false;
-    end
+    % Delete files being archived after they are successfully added to the archive (default: no deletion)
     if(Delete_Files)
         RAR_Command = strcat(RAR_Command, " -dr");
     end
@@ -188,37 +219,101 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     %-ma (RAR 5.0 archive)
     %-htc (CRC32 file checksum) - discontinued in favour of BLAKE2 [command switch below]
     %-htb (Use 256 bit BLAKE2 checksum for files)
-    RAR_Command = strcat(RAR_Command, " -t  -ma -htb -ed -ep1 -r ", '"', Directory_Path_To_RAR, '\*"');
-    %disp(RAR_Command);
+    %RAR_Command = strcat(RAR_Command, " -t  -ma -htb -ed -ep1 -r ", '"', Directory_Path_To_RAR, '\*"');
+    RAR_Command = strcat(RAR_Command, " -t  -ma -htb -ed -ep1 -r ", '"', Directory_Path_To_RAR, filesep, '*"');
     %% Creation of the archive
     Zip_File_Creation_Unsuccessful = system(RAR_Command);
-    %% Add a comment to the archive
-    if(exist('Comment','var'))
-        if(isfile(Temporary_Comment_Filename))
-            try
-                delete(Temporary_Comment_Filename);
-            catch
-                disp(strcat("Error deleting temporary file for adding the ZIP comment: ", Temporary_Comment_Filename));
-            end
+    
+    %% If the temporary comment file exists, remove the file after creating the archive
+    if(isfile(Temporary_Comment_Filename))
+        try
+            delete(Temporary_Comment_Filename);
+        catch
+            warning(strcat("RAR : Error deleting temporary file for adding the ZIP comment: ", Temporary_Comment_Filename));
         end
     end
 
     %% Display message on failure to zip files
-    if(Zip_File_Creation_Unsuccessful)
-        Success = false;
-    else
+    if(~Zip_File_Creation_Unsuccessful)
         Success = true;
-    end
-    %% VERIFY IF OUTPUT FILE EXISTS
-    if(Success == true)
+        %Verify output file exists
         if(~isfile(Archive_File))
-            warning("RAR : Archive file not found. Compression may have failed.");
             Success = false;
+            warning("RAR : Archive file not found. Compression may have failed.");
         end
-    end
-    if(Success == true)
-        %Successful compression
     else
+        Success = false;
         warning("RAR: Archive Compression Failure");
     end
+end
+
+%% Verifies WinRAR software / RAR repository is installed
+function RAR_Utility_Path = Get_RAR_Utility_Path()
+    RAR_Utility_Path = "";
+    %% Windows
+    if(ispc)
+        %% Attempt to read WinRAR installation path from Windows Registry
+        try
+            Registry_Keys = winqueryreg('name', 'HKEY_LOCAL_MACHINE', 'SOFTWARE\WinRAR');
+        catch
+            Registry_Keys = {};
+        end
+        if(~isempty(Registry_Keys))
+            for Current_Registry_Key_Index = 1:length(Registry_Keys)
+                try
+                    Current_Registry_Key = regexp(winqueryreg('HKEY_LOCAL_MACHINE','SOFTWARE\WinRAR', Registry_Keys{Current_Registry_Key_Index}), '^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$', 'match');
+                    if(isfile(Current_Registry_Key))
+                        RAR_Utility_Path = char(Current_Registry_Key);
+                    end
+                catch
+                end
+            end
+        end
+        if(isempty(RAR_Utility_Path))
+            try
+                Registry_Keys = winqueryreg('name', 'HKEY_LOCAL_MACHINE', 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe');
+            catch
+                Registry_Keys = {};
+            end
+            if(~isempty(Registry_Keys))
+                for Current_Registry_Key_Index = 1:length(Registry_Keys)
+                    try
+                        Current_Registry_Key = regexp(winqueryreg('HKEY_LOCAL_MACHINE','SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe', Registry_Keys{Current_Registry_Key_Index}), '^[a-zA-Z]:\\(((?![<>:"/\\|?*]).)+((?<![ .])\\)?)*$', 'match');
+                        if(isfile(Current_Registry_Key))
+                            RAR_Utility_Path = char(Current_Registry_Key);
+                        end
+                    catch
+                    end
+                end
+            end
+        end
+        if(isempty(RAR_Utility_Path))
+            error("RAR : Can't verify that the WinRAR is installed");
+        end
+    %% UNIX; check RAR repository is installed
+    elseif(isunix)
+        % verify RAR repository is installed
+        [Status, CMD_Out] = system("TERM=ansi; dpkg-query --showformat='${Version}' --show rar");
+        if(Status || isempty(CMD_Out))
+            [Status, CMD_Out] = system("TERM=ansi; dpkg -s rar | grep '^Version:'");
+        end
+        if(Status || isempty(CMD_Out))
+            error("RAR : Can't verify that the RAR package is installed");
+        end
+        RAR_Utility_Path = "TERM=ansi; rar";
+    %% MAC; treat as unix (unsupported)
+    elseif(ismac)
+        warning("RAR : Mac is currently unsupported, attempting to use unix implementation.");
+        [Status, CMD_Out] = system("TERM=ansi; dpkg-query --showformat='${Version}' --show rar");
+        if(Status || isempty(CMD_Out))
+            [Status, CMD_Out] = system("TERM=ansi; dpkg -s rar | grep '^Version:'");
+        end
+        if(Status || isempty(CMD_Out))
+            error("RAR : Can't verify that the RAR package is installed");
+        end
+        RAR_Utility_Path = "TERM=ansi; rar";
+    else
+        error("RAR : Unable to determine system operating system for automatic selection");
+    end
+    RAR_Utility_Path = char(RAR_Utility_Path);
 end
