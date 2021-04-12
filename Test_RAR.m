@@ -3,11 +3,19 @@ Include_Subdirectories();
 
 %% Directories
 %Root directory to compress into a RAR archive
-RAR_This_Directory = "/media/sf_Virtualbox_Shared/WinRAR_Testing";
+if(isunix)
+    RAR_This_Directory = "/media/sf_Virtualbox_Shared/WinRAR_Testing";
+else
+    RAR_This_Directory = "D:\Virtualbox_Shared\WinRAR_Testing";
+end
 %Filename for the created RAR file
 Output_RAR_File = "Test.rar";
 %Root directory to extract the files from the RAR archive into
-Extraction_Directory = "RAR_Output";
+if(isunix)
+    Extraction_Directory = "/media/sf_Virtualbox_Shared/RAR_Output";
+else
+    Extraction_Directory = "D:\Virtualbox_Shared\RAR_Output";
+end
 
 %% Parameters to compress/uncompress RAR file with
 %Full path to WinRAR.exe, this (may/may not) be needed depending on system enviroment variables
