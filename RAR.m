@@ -54,6 +54,10 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
                 RAR_Utility_Path = Get_RAR_Utility_Path();
             else
                 RAR_Utility_Path = Struct_Var_Value;
+                %Escape directory path on PC
+                if(ispc)
+                    RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
+                end
             end
         else
             RAR_Utility_Path = Get_RAR_Utility_Path();

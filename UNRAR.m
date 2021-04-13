@@ -27,6 +27,10 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
                 RAR_Utility_Path = Get_RAR_Utility_Path();
             else
                 RAR_Utility_Path = Struct_Var_Value;
+                %Escape directory path on PC
+                if(ispc)
+                    RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
+                end
             end
         else
             RAR_Utility_Path = Get_RAR_Utility_Path();
@@ -211,7 +215,7 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(Status || isempty(CMD_Out))
             error("RAR : Can't verify that the RAR package is installed");
         end
-        RAR_Utility_Path = "TERM=ansi; rar";
+        RAR_Utility_Path = 'TERM=ansi; rar';
     %% MAC; treat as unix (unsupported)
     elseif(ismac)
         warning("RAR : Mac is currently unsupported, attempting to use unix implementation.");
@@ -222,7 +226,7 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(Status || isempty(CMD_Out))
             error("RAR : Can't verify that the RAR package is installed");
         end
-        RAR_Utility_Path = "TERM=ansi; rar";
+        RAR_Utility_Path = 'TERM=ansi; rar';
     else
         error("RAR : Unable to determine system operating system for automatic selection");
     end
