@@ -2,7 +2,7 @@ clear all;
 Include_Subdirectories();
 
 %% Directories
-%Root directory to compress into a RAR archive
+%Root directory to compress into a RAR archive (unix / windows format switching)
 if(isunix)
     RAR_This_Directory = "/media/sf_Virtualbox_Shared/WinRAR_Testing";
 else

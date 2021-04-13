@@ -1,6 +1,6 @@
 # WinRAR integration into Matlab
 
-Scripts to compress / decompress archive files using WinRAR 5.0+ programmatically from within Matlab. These scripts are not a replacement for the official WinRAR software as both RAR.m and UNRAR.m call the executable of the official WinRAR client in order to function.
+Scripts to compress / decompress archive files using WinRAR 5.0+ programmatically from within Matlab. These scripts are not a replacement for official WinRAR software as both RAR.m and UNRAR.m call the executables of the official WinRAR client in order to function. For more information on requirements and setup, see <a href="README.md#Installation_Requirements" title="Installation Requirements">Installation Requirements</a>.
 
 RAR.m supports the creation of RAR file formats, a full feature list of this script is shown below. While this script also happens to work for the creation of ZIP file formats, it is not fully supported and may be less reliable than using the RAR file format. 
 
@@ -15,30 +15,35 @@ RAR.m supports the use of the following features of WinRAR:
 * Archive comments.
 * Running as a background (invisible) or foreground (visible) process.
 
-UNRAR.m supports the extraction of multiple compressed file formats including RAR, ZIP and GZ. Additional file formats that WinRAR supports may work, but are untested. The extraction of password protected RAR archives is supported. Advanced features such as repairing damaged archives that have recovery sectors are not, please use the official WinRAR client to do this in the event of a failed extraction due to corruption.
-
-### Prerequisites
-
-Current requirements for running this script are:
-* An installed and licenced version of WinRAR (version 5.0 or higher).
-* Windows operating system (see the Contributing section below regarding other operating systems).
+UNRAR.m supports the extraction of multiple compressed file formats including RAR, ZIP and GZ. Additional file formats that WinRAR supports may work, but are untested. The extraction of password protected RAR archives is supported. Advanced features such as repairing damaged archives that have recovery sectors are not supported, please use the official WinRAR client to do this in the event of a failed extraction due to corruption.
 
 ### Example
 
-Example use of RAR.m and UNRAR.m to create a RAR archive from a directory, then un-compress the archive to another directory. 
+Example use of RAR.m and UNRAR.m to create a RAR archive from a directory, then un-compress the same archive to another directory. 
 
 ```matlab
+clear all;
+Include_Subdirectories();
+
 %% Directories
-%Root directory to compress into a RAR archive
-RAR_This_Directory = "C:\Users\Username\Desktop\RAR Testing";
+%Root directory to compress into a RAR archive (unix / windows format switching)
+if(isunix)
+    RAR_This_Directory = "/media/sf_Virtualbox_Shared/WinRAR_Testing";
+else
+    RAR_This_Directory = "D:\Virtualbox_Shared\WinRAR_Testing";
+end
 %Filename for the created RAR file
 Output_RAR_File = "Test.rar";
 %Root directory to extract the files from the RAR archive into
-Extraction_Directory = "RAR_Output";
+if(isunix)
+    Extraction_Directory = "/media/sf_Virtualbox_Shared/RAR_Output";
+else
+    Extraction_Directory = "D:\Virtualbox_Shared";
+end
 
 %% Parameters to compress/uncompress RAR file with
 %Full path to WinRAR.exe, this (may/may not) be needed depending on system enviroment variables
-RAR_Parameters.WinRAR_Path = 'C:\Program Files\WinRAR\WinRAR.exe';
+%RAR_Parameters.WinRAR_Path = 'C:\Program Files\WinRAR\WinRAR.exe';
 %Password to encrypt the archive with (optional, maximum length 125 characters due to WinRAR constraints)
 RAR_Parameters.Password = "testpassword";
 %If encrypting the filenames in the archive as well as the file contents
@@ -59,16 +64,21 @@ RAR_Parameters.Compression_Level = 1;
 RAR_Parameters.Overwrite_Mode = true;
 
 %Compress files to an archive
-Success = RAR(Directory_Path_To_RAR, Output_RAR_File, RAR_Parameters);
+Compression_Success = RAR(RAR_This_Directory, Output_RAR_File, RAR_Parameters);
 %Uncompress files from the archive if the original compression was successful
-if(Success)
-    [Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory, RAR_Parameters);
+if(Compression_Success)
+    [Decompression_Success, Comment] = UNRAR(Output_RAR_File, Extraction_Directory, RAR_Parameters);
 end
 ```
 
-## Linux
+## Installation Requirements
+* Matlab R2018A or later.
 
-Requires the ```rar``` package installed via ```multiverse``` repository to read/write rar archives on linux.
+### Windows
+* An installed and licenced version of WinRAR (version 5.0 or higher).
+    * If a portable installation is used, point ```RAR_Parameters.WinRAR_Path``` to the location of ```WinRAR.exe```.
+
+### Unix / Linux
 
 To install the ```rar``` package:
 * ```sudo add-apt-repository multiverse```
@@ -86,12 +96,13 @@ To register the ```rar``` package, copy the ```rarreg.key``` licence file to eit
 * [Matlab R2018A](https://www.mathworks.com/products/matlab.html)
 * [WinRAR 5.0](https://www.rarlab.com/)
 * [Windows 10](https://www.microsoft.com/en-gb/software-download/windows10)
+* [Ubuntu 20.04 LTS](https://ubuntu.com/)
 
 ## Contributing
 
 Contributions towards this code will only be accepted under the following conditions:
-* Enabling support for additional operating systems (must not break any functionality on Windows)
-* Provide new features introduced to WinRAR that do not break current implementations (must be backwards compatible).
+* Enabling support for additional operating systems (must not break any functionality on Windows / Unix)
+* Provide new features that do not break current implementations (must be backwards compatible).
 
 ## Authors
 
