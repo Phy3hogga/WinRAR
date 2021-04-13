@@ -10,11 +10,11 @@ else
 end
 %Filename for the created RAR file
 Output_RAR_File = "Test.rar";
-%Root directory to extract the files from the RAR archive into
+%Root directory to extract the files from the RAR archive into (unix / windows format switching)
 if(isunix)
     Extraction_Directory = "/media/sf_Virtualbox_Shared/RAR_Output";
 else
-    Extraction_Directory = "D:\Virtualbox_Shared";
+    Extraction_Directory = "D:\Virtualbox_Shared\RAR_Output";
 end
 
 %% Parameters to compress/uncompress RAR file with
