@@ -7,8 +7,7 @@
 % - Overwrite_Mode (boolean) - Overwrite (true), don't overwrite (false), ask (default)
 % - Password (string) - Archive Password
 function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Parameters)
-    %% Get input parameters, dynamically build winrar command
-    RAR_Command = '"';
+    %% Get input parameters
     %% Path to WinRAR EXE
     if(nargin < 2)
         error('Error: Insufficient Input, expected a minimum of two inputs');
@@ -17,8 +16,8 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
         RAR_Utility_Path = Get_RAR_Utility_Path();
         Comment = "";
         Overwrite_Mode = " -o";
-        RAR_Command_Password = "";
-        Rar_Command_Silent_Override = false;
+        Password = "";
+        Silent_Override = false;
     elseif(nargin == 3)
         %% handle optional arguments
         %Change winrar path
@@ -36,9 +35,9 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
         %% Run WinRAR in the Background or not (default = background process)
         [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Silent_Override', false);
         if(Struct_Var_Valid)
-            Rar_Command_Silent_Override = Struct_Var_Value;
+            Silent_Override = Struct_Var_Value;
         else
-            Rar_Command_Silent_Override = false;
+            Silent_Override = false;
         end
         
         %% Encryption using password for archive
@@ -47,25 +46,25 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
             Password = Struct_Var_Value;
             if(strlength(Password) >= 125)
                 disp("Warning: Password string length restricted to 125 characters, archive will not be protected by password");
-                RAR_Command_Password = "";
+                Password = "";
             else
                 [Struct_Var_Value, Struct_Var_Valid, ~] = Verify_Structure_Input(RAR_Parameters, 'Encrypt_Filenames ', true);
                 if(Struct_Var_Valid)
                     Encrypt_Filenames  = Struct_Var_Value;
                     if(Encrypt_Filenames)
                         %encrypts filenames and file contents in archive
-                        RAR_Command_Password = strcat(" -hp", Password);
+                        Password = strcat(" -hp", Password);
                     else
                         %encrypts file contents only
-                        RAR_Command_Password = strcat(" -p", Password);
+                        Password = strcat(" -p", Password);
                     end
                 else
                     %encrypts file contents only
-                    RAR_Command_Password = strcat(" -p", Password);
+                    Password = strcat(" -p", Password);
                 end
             end
         else
-            RAR_Command_Password = "";
+            Password = "";
         end
         
         %% If overwriting files automatically or not
@@ -90,7 +89,18 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
     %% Read comment in archive (seperate to extraction)
     Temporary_Comment_Filename = strcat('Temp_Comment_File-', num2str(now), '.txt');
     try
-        Comment_Read_Command = strcat('"', RAR_Utility_Path, '" cw "', Archive_Path, '"', ' "', Temporary_Comment_Filename, '"');
+        Comment_Read_Command = strcat(RAR_Utility_Path, ' cw "', Archive_Path, '"', ' "', Temporary_Comment_Filename, '"');
+        %% Suppression of output / gui.
+        if(~Silent_Override)
+            if(ispc)
+                Comment_Read_Command = strcat(Comment_Read_Command, " -IBCK");
+            elseif(isunix)
+                Comment_Read_Command = strcat(Comment_Read_Command, " >/dev/null");
+            else
+                warning("RAR : Suppression may not work as indended, unknown operating system.");
+                Comment_Read_Command = strcat(Comment_Read_Command, " >/dev/null");
+            end
+        end
         system(Comment_Read_Command);
         Comment = fileread(Temporary_Comment_Filename);
     catch
@@ -106,15 +116,11 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
     end
     
     %% Optional argument addition to system command call
-    %Winrar path change
-    RAR_Command = strcat(RAR_Command, RAR_Utility_Path, '"');
-    %Silent unpacking of files
-    if(~Rar_Command_Silent_Override)
-        RAR_Command = strcat(RAR_Command, " -IBCK");
-    end
+    %Call relevent RAR utility (based on operating system)
+    RAR_Command = RAR_Utility_Path;
     
     %Password protection of archive
-    RAR_Command = strcat(RAR_Command, RAR_Command_Password);
+    RAR_Command = strcat(RAR_Command, Password);
     
     %Overwrite or not
     RAR_Command = strcat(RAR_Command, Overwrite_Mode);
@@ -127,6 +133,20 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
             error(strcat("RAR : Error creating extraction directory path: ", Extraction_Directory));
         end
     end
+    
+    %% Suppression of output / gui.
+    if(~Silent_Override)
+        if(ispc)
+            RAR_Command = strcat(RAR_Command, " -IBCK");
+        elseif(isunix)
+            RAR_Command = strcat(RAR_Command, " >/dev/null");
+        else
+            warning("RAR : Suppression may not work as indended, unknown operating system.");
+            RAR_Command = strcat(RAR_Command, " >/dev/null");
+        end
+    end
+    
+    %Extraction 
     RAR_Command = strcat(RAR_Command, " x ", '"', Archive_Path, '" "', Extraction_Directory, '"');
     Extraction_Unsuccessful = system(RAR_Command);
     if(~Extraction_Unsuccessful)
@@ -179,6 +199,8 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(isempty(RAR_Utility_Path))
             error("RAR : Can't verify that the WinRAR is installed");
         end
+        %Encapsulate in quotes escape possible spaces in windows path
+        RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
     %% UNIX; check RAR repository is installed
     elseif(isunix)
         % verify RAR repository is installed
@@ -204,5 +226,6 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
     else
         error("RAR : Unable to determine system operating system for automatic selection");
     end
+    %Ensure the output is a character array
     RAR_Utility_Path = char(RAR_Utility_Path);
 end

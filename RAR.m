@@ -170,10 +170,8 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     end
     
     %% Compile system command
-    RAR_Command = strcat('"', RAR_Utility_Path, '"');
-    if(~Silent_Override)
-        RAR_Command = strcat(RAR_Command, ' -IBCK');
-    end
+    %Call relevent RAR utility (based on operating system)
+    RAR_Command = RAR_Utility_Path;
     
     %Only add file seperator if required (absolute file paths)
     if(~Output_File_Path_Empty)
@@ -185,8 +183,6 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     if(ispc)
         RAR_Command = strcat(RAR_Command, " -af", Archive_Format);
     end
-    %RAR_Command = strcat(RAR_Command, " a -af", Archive_Format, ' "', Archive_File, '"');
-    
     
     % Password protection
     if(Encrypt_Files)
@@ -219,10 +215,21 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     %-ma (RAR 5.0 archive)
     %-htc (CRC32 file checksum) - discontinued in favour of BLAKE2 [command switch below]
     %-htb (Use 256 bit BLAKE2 checksum for files)
-    %RAR_Command = strcat(RAR_Command, " -t  -ma -htb -ed -ep1 -r ", '"', Directory_Path_To_RAR, '\*"');
     RAR_Command = strcat(RAR_Command, " -t  -ma -htb -ed -ep1 -r ", '"', Directory_Path_To_RAR, filesep, '*"');
+    
+    %% Suppression of output / gui.
+    if(~Silent_Override)
+        if(ispc)
+            RAR_Command = strcat(RAR_Command, " -IBCK");
+        elseif(isunix)
+            RAR_Command = strcat(RAR_Command, " >/dev/null");
+        else
+            warning("RAR : Suppression may not work as indended, unknown operating system.");
+            RAR_Command = strcat(RAR_Command, " >/dev/null");
+        end
+    end
     %% Creation of the archive
-    Zip_File_Creation_Unsuccessful = system(RAR_Command);
+    [Zip_File_Creation_Unsuccessful, ~] = system(RAR_Command);
     
     %% If the temporary comment file exists, remove the file after creating the archive
     if(isfile(Temporary_Comment_Filename))
@@ -253,6 +260,7 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
     %% Windows
     if(ispc)
         %% Attempt to read WinRAR installation path from Windows Registry
+        %Default Install Path
         try
             Registry_Keys = winqueryreg('name', 'HKEY_LOCAL_MACHINE', 'SOFTWARE\WinRAR');
         catch
@@ -270,6 +278,7 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
             end
         end
         if(isempty(RAR_Utility_Path))
+            %Installed Software Registry
             try
                 Registry_Keys = winqueryreg('name', 'HKEY_LOCAL_MACHINE', 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe');
             catch
@@ -288,8 +297,11 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
             end
         end
         if(isempty(RAR_Utility_Path))
-            error("RAR : Can't verify that the WinRAR is installed");
+            error("RAR : Can't verify that the WinRAR is installed.");
+            RAR_Utility_Path = "WinRAR.exe";
         end
+        %Encapsulate in quotes to deal with possible spaces in windows path
+        RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
     %% UNIX; check RAR repository is installed
     elseif(isunix)
         % verify RAR repository is installed
@@ -300,7 +312,7 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(Status || isempty(CMD_Out))
             error("RAR : Can't verify that the RAR package is installed");
         end
-        RAR_Utility_Path = "TERM=ansi; rar";
+        RAR_Utility_Path = 'TERM=ansi; rar';
     %% MAC; treat as unix (unsupported)
     elseif(ismac)
         warning("RAR : Mac is currently unsupported, attempting to use unix implementation.");
@@ -311,9 +323,10 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(Status || isempty(CMD_Out))
             error("RAR : Can't verify that the RAR package is installed");
         end
-        RAR_Utility_Path = "TERM=ansi; rar";
+        RAR_Utility_Path = 'TERM=ansi; rar';
     else
         error("RAR : Unable to determine system operating system for automatic selection");
     end
+    %Ensure the output is a character array
     RAR_Utility_Path = char(RAR_Utility_Path);
 end
