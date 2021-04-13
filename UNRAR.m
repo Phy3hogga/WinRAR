@@ -27,10 +27,6 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
                 RAR_Utility_Path = Get_RAR_Utility_Path();
             else
                 RAR_Utility_Path = Struct_Var_Value;
-                %Escape directory path on PC
-                if(ispc)
-                    RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
-                end
             end
         else
             RAR_Utility_Path = Get_RAR_Utility_Path();
@@ -90,10 +86,13 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
         error('RAR : Unexpected Input');
     end
     
+    %% Escape the file path strings on windows
+    RAR_Utility_Path = Escape_File_Path_String(RAR_Utility_Path, true);
+    
     %% Read comment in archive (seperate to extraction)
     Temporary_Comment_Filename = strcat('Temp_Comment_File-', num2str(now), '.txt');
     try
-        Comment_Read_Command = strcat(RAR_Utility_Path, ' cw "', Archive_Path, '"', ' "', Temporary_Comment_Filename, '"');
+        Comment_Read_Command = strcat(RAR_Utility_Path, ' cw ', Escape_File_Path_String(Archive_Path, true), ' ', Escape_File_Path_String(Temporary_Comment_Filename));
         %% Suppression of output / gui.
         if(~Silent_Override)
             if(ispc)
@@ -130,6 +129,7 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
     RAR_Command = strcat(RAR_Command, Overwrite_Mode);
     
     %% EXTRACTION
+    %Escape the extraction directory path on windows
     if(~isfolder(Extraction_Directory))
         try
             mkdir(Extraction_Directory);
@@ -151,7 +151,7 @@ function [Success, Comment] = UNRAR(Archive_Path, Extraction_Directory, RAR_Para
     end
     
     %Extraction 
-    RAR_Command = strcat(RAR_Command, " x ", '"', Archive_Path, '" "', Extraction_Directory, '"');
+    RAR_Command = strcat(RAR_Command, " x ", Escape_File_Path_String(Archive_Path, true), " ", Escape_File_Path_String(Extraction_Directory, true));
     Extraction_Unsuccessful = system(RAR_Command);
     if(~Extraction_Unsuccessful)
         Success = true;
@@ -203,8 +203,6 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
         if(isempty(RAR_Utility_Path))
             error("RAR : Can't verify that the WinRAR is installed");
         end
-        %Encapsulate in quotes escape possible spaces in windows path
-        RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
     %% UNIX; check RAR repository is installed
     elseif(isunix)
         % verify RAR repository is installed

@@ -175,7 +175,7 @@ function Success = RAR(Directory_Path_To_RAR, Output_Archive_File, RAR_Parameter
     
     %% Compile system command
     %Call relevent RAR utility (based on operating system)
-    RAR_Command = RAR_Utility_Path;
+    RAR_Command = Escape_File_Path_String(RAR_Utility_Path, true);
     
     %Only add file seperator if required (absolute file paths)
     if(~Output_File_Path_Empty)
@@ -304,8 +304,6 @@ function RAR_Utility_Path = Get_RAR_Utility_Path()
             error("RAR : Can't verify that the WinRAR is installed.");
             RAR_Utility_Path = "WinRAR.exe";
         end
-        %Encapsulate in quotes to deal with possible spaces in windows path
-        RAR_Utility_Path = strcat('"', RAR_Utility_Path, '"');
     %% UNIX; check RAR repository is installed
     elseif(isunix)
         % verify RAR repository is installed
